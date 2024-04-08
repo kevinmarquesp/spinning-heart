@@ -1,59 +1,73 @@
 #include <math.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 // Spinning formula: y^2 = (-x^2 - (1.2z + |x| * (2/3)) +1^2) / (2 -z)^2
+// REAL FORMULA:  (x^{2}+2.25y^{2}+z^{2}-1)^{3}-x^{2}z^{3}-0.05y^{2}z^{3}=0
+
+#define SLEEP 3000
+#define ROWS 100
+#define COLS 40
+#define XY_START -.5f
+#define XY_END .5f
 
 int main(void)
 {
 	// Clear screen hide cursor
 	printf("\x1b[2J\x1b[?5l");
 
-	float t = 0;
+	float loopCounter = 0;
 
-	while (1)
+	while (true)
 	{
-		float zb[100 * 40] = {0};
-		float maxz = 0, c = cos(t), s = sin(t);
+		const float scaleFactorCos = cos(loopCounter);
+		const float scaleFactorSin = sin(loopCounter);
+
+		float grid2D[ROWS * COLS] = {0};
+		float maxZVal = 0;
 
 		for (float y = -0.5f; y <= 0.5f; y += 0.01f)
 		{
+			///  INFO: This `scale` value will be dinamicaly setted based on the `scaleFactorCos`, `scaleFactorSin` and `loopCounter` variables
+
+			const float scale = 0.4f + 0.2f * pow(0.2f + 0.2f * sin(loopCounter * 6 + y * 2), 2);
+
 			for (float x = -0.5f; x <= 0.5f; x += 0.01f)
 			{
-				// heart formula
+				float z = -x * x - pow(1.2f * y - fabs(x) * 2 / 3, 2) + pow(scale, 2);  // 3D Heart Shape Formula
 
-				float z = -x * x - pow(1.2f * y - fabs(x) * 2 / 3, 2) + 0.1;
+				// I really don't get it, what is this condition important?
 
-				if (z < 0)
-				{
-					continue;
-				}
+				// if (z < 0)
+				// {
+				//	continue;
+				// }
 
 				z = sqrt(z) / (2 - y);
 
-				for (float tz = -z; tz <= z; tz += z / 6)
+				///  INFO: This `tmpZ` variable is just used to generate an 2D representation of the *xyz* values
+
+				for (float tmpZ = -z; tmpZ <= z; tmpZ += z / 6)
 				{
-					// Rotate
+					float rotatedX = x * scaleFactorCos - tmpZ * scaleFactorSin;
+					float rotatedZ = x * scaleFactorSin + tmpZ * scaleFactorCos;
 
-					float nx = x * c - tz * s;
-					float nz = x * s + tz * c;
+					float perspective = 1 + rotatedZ / 2;
 
-					// Add perspective
+					uint8_t xGridPos = lroundf((rotatedX * perspective + 0.5f) * 80);
+					uint8_t yGridPos = lroundf((-y * perspective + 0.5f) * 39);
 
-					float p = 1 + nz / 2;
+					int index = xGridPos + yGridPos * ROWS;
 
-					int vx = lroundf((nx * p + 0.5f) * 80);
-					int vy = lroundf((-y * p + 0.5f) * 39);
-
-					int idx = vx + vy * 100;
-
-					if (zb[idx] <= nz)
+					if (grid2D[index] <= rotatedZ)
 					{
-						zb[idx] = nz;
+						grid2D[index] = rotatedZ;
 
-						if (maxz <= nz)
+						if (maxZVal <= rotatedZ)
 						{
-							maxz = nz;
+							maxZVal = rotatedZ;
 						}
 					}
 				}
@@ -62,14 +76,14 @@ int main(void)
 
 		printf("\x1b[H");
 
-		for (int i = 0; i < 100 * 40; i++)
+		for (int i = 0; i < ROWS * COLS; ++i)
 		{
-			putchar(i % 100 ? " .,-~:;=!*###@"[lroundf(zb[i] / maxz * 13)] : 10);
+			putchar(i % ROWS ? " iiiiii#####@@"[lroundf(grid2D[i] / maxZVal * 13)] : '\n');
 		}
 
-		t += 0.003f;
+		loopCounter += 0.003f;
 
-		usleep(3000);
+		usleep(SLEEP);
 	}
 
 	return 0;
